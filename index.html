@@ -124,6 +124,12 @@ p{margin:0}
 @keyframes pulsem{50%{transform:scale(1.25);opacity:.6}}
 .sayans{font-family:var(--f-display);font-size:22px;color:var(--ink)!important;font-weight:600}
 .row2{display:flex;gap:10px}.row2 .btn{flex:1;padding:12px 8px;font-size:15px}
+.ro{pointer-events:none}
+.modes{display:flex;flex-direction:column;gap:12px;margin-top:18px}
+.mode{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:18px 16px;border:2px solid var(--line);border-bottom-width:5px;border-radius:18px;background:var(--surface);color:var(--ink);font-size:18px}
+.mode small{display:block;margin-top:4px;font-size:14px;font-weight:500;color:var(--muted)}
+.mode .mic{flex:none;width:52px;height:52px;border-radius:14px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center}
+.mode.last{border-color:var(--brand)}
 .micb{display:inline-flex;align-items:center;gap:6px}
 .enter{animation:enter .28s ease-out}
 @keyframes enter{from{opacity:.2;transform:translateX(18px)}to{opacity:1;transform:none}}
@@ -266,7 +272,7 @@ var ico=function(n,s){s=s||22;return '<svg class="i" width="'+s+'" height="'+s+'
 /* ---------- stan ---------- */
 function def(){return {xp:0,streak:0,best:0,last:null,hearts:5,hts:Date.now(),goal:50,daily:{d:'',xp:0},
   done:{},mistakes:[],wrong:{},badges:{},us:{},stats:{answered:0,correct:0,lessons:0,perfect:0,fixed:0},
-  custom:{units:[],questions:[],passages:{}},sound:true,stage:'szkolny'};}
+  custom:{units:[],questions:[],passages:{}},sound:true,stage:'szkolny',ansMode:'write'};}
 function load(){try{var r=localStorage.getItem(KEY);if(r){var o=JSON.parse(r);var d=def();for(var k in o)d[k]=o[k];if(!d.custom.passages)d.custom.passages={};return d;}}catch(e){}return def();}
 var S=load();
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
@@ -427,7 +433,7 @@ var PRAISE_COMBO={3:'Trzy z rzędu. Rozgrzewasz się!',5:'Pięć z rzędu. Jeste
 var LABEL={mc:'Wybierz poprawną odpowiedź',type:'Wpisz brakujące słowo',order:'Ułóż zdanie',match:'Połącz pary'};
 var cur=function(){return L.queue[L.i];};
 function norm(s){return String(s).toLowerCase().replace(/[’‘`´]/g,"'").replace(/[.!?,;:]+$/,'').replace(/\s+/g,' ').trim();}
-function canCheck(){var q=cur(),c=L.cur;if(q.type==='mc')return c.sel!==null;if(q.type==='type')return c.val.trim().length>0;if(q.type==='order')return c.chosen.length>0;return false;}
+function canCheck(){var q=cur(),c=L.cur;if(L.ans==='say')return false;if(q.type==='mc')return c.sel!==null;if(q.type==='type')return c.val.trim().length>0;if(q.type==='order')return c.chosen.length>0;return false;}
 function correctText(q){if(q.type==='mc')return q.options[q.answer];if(q.type==='type')return q.answers[0];if(q.type==='order')return q.answer;return q.pairs.map(function(p){return p[0]+' = '+p[1];}).join(', ');}
 
 function loadQ(){
@@ -436,19 +442,20 @@ function loadQ(){
   if(q.type==='mc')c.opts=shuffle(q.options.map(function(t,i){return {t:t,i:i};}));
   if(q.type==='order'){var w=(q.words||q.answer.split(' ')),k=0;do{c.words=shuffle(w);k++;}while(c.words.join(' ')===q.answer&&k<6);}
   if(q.type==='match'){var ix=q.pairs.map(function(_,i){return i;});c.ml=shuffle(ix);c.mr=shuffle(ix);}
-  c.say=null;L.cur=c;L.status=null;L.fresh=true;L.focusNext=true;
+  c.say=null;L.cur=c;L.status=null;L.fresh=true;L.focusNext=L.ans!=='say';
+  if(L.ans==='say')setTimeout(function(){if(L&&L.cur===c&&!L.status&&!c.say&&view==='lesson')sayStart(false);},400);
 }
 function startLesson(uid,i){
   tickHearts();if(S.hearts<=0){view='nohearts';render();return;}
   var u=units().filter(function(x){return x.id===uid;})[0],qs=lessonsOf(u)[i];
-  L={mode:'lesson',key:lkey(u,i),queue:u.shuffle===false?qs.slice():shuffle(qs),i:0,total:qs.length,solved:0,solvedSet:{},seen:{},tries:{},first:0,combo:0,pOpen:true,quit:false,dead:false};
+  L={mode:'lesson',key:lkey(u,i),queue:u.shuffle===false?qs.slice():shuffle(qs),i:0,total:qs.length,solved:0,solvedSet:{},seen:{},tries:{},first:0,combo:0,pOpen:true,quit:false,dead:false,choose:true,ans:null,title:u.title};
   loadQ();view='lesson';render();window.scrollTo(0,0);
 }
 function startReview(){
   if(!S.mistakes.length)return;
   var qs=S.mistakes.slice(0,8).map(qById).filter(Boolean);
   if(!qs.length){S.mistakes=[];save();render();return;}
-  L={mode:'review',key:null,queue:shuffle(qs),i:0,total:qs.length,solved:0,solvedSet:{},seen:{},tries:{},first:0,combo:0,pOpen:true,quit:false,dead:false};
+  L={mode:'review',key:null,queue:shuffle(qs),i:0,total:qs.length,solved:0,solvedSet:{},seen:{},tries:{},first:0,combo:0,pOpen:true,quit:false,dead:false,choose:true,ans:null,title:'Powtórka błędów'};
   loadQ();view='lesson';render();window.scrollTo(0,0);
 }
 
@@ -475,7 +482,7 @@ var SR=window.SpeechRecognition||window.webkitSpeechRecognition,REC=null;
 function sayNorm(s){return String(s).toLowerCase().replace(/[’‘`´]/g,"'").replace(/[^a-z0-9' \-]/g,' ').replace(/\s+/g,' ').trim();}
 function lcsRatio(a,b){var m=a.length,n=b.length,d=[],i,j;for(i=0;i<=m;i++){d[i]=[];for(j=0;j<=n;j++)d[i][j]=0;}for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=a[i-1]===b[j-1]?d[i-1][j-1]+1:Math.max(d[i-1][j],d[i][j-1]);return n?d[m][n]/n:0;}
 function sayStop(){try{if(REC)REC.abort();}catch(e){}REC=null;}
-function sayStart(){
+function sayStart(manual){
   var q=cur(),c=L.cur;if(L.status)return;sayStop();
   if(q.type==='match'||!SR){c.say={m:'self',show:false,nosr:q.type!=='match'};render();return;}
   var ref=c,rec,got=false;
@@ -483,7 +490,7 @@ function sayStart(){
   REC=rec;rec.lang='en-US';rec.interimResults=false;rec.maxAlternatives=5;rec.continuous=false;
   c.say={m:'listen'};render();
   rec.onresult=function(ev){got=true;var r=ev.results[0],alts=[];for(var i=0;i<r.length;i++)alts.push(r[i].transcript);if(L&&L.cur===ref&&!L.status)sayEval(alts);};
-  rec.onerror=function(ev){if(got||!(L&&L.cur===ref&&!L.status))return;var e=ev&&ev.error;ref.say=(e==='no-speech'||e==='aborted')?{m:'none'}:{m:'self',show:false,nosr:true};render();};
+  rec.onerror=function(ev){if(got||!(L&&L.cur===ref&&!L.status))return;var e=ev&&ev.error;ref.say=(e==='no-speech'||e==='aborted')?{m:'none'}:((e==='not-allowed'||e==='service-not-allowed')&&!manual)?{m:'idle'}:{m:'self',show:false,nosr:true};render();};
   rec.onend=function(){if(!got&&L&&L.cur===ref&&!L.status&&ref.say&&ref.say.m==='listen'){ref.say={m:'none'};render();}};
   try{rec.start();}catch(e){c.say={m:'self',show:false,nosr:true};render();}
 }
@@ -504,13 +511,15 @@ function sayEval(alts){
   c.say={m:'miss',heard:heard};render();
 }
 function sayHTML(q){
-  var s=L.cur.say;if(!s||L.status)return '';
+  if(L.ans!=='say'||L.status)return '';
+  var s=L.cur.say||{m:'idle'};
   var h='<div class="say">';
-  if(s.m==='listen')h+='<div class="sayrow"><span class="pulsem">'+ico('mic',28)+'</span><b>Słucham… powiedz odpowiedź po angielsku</b></div><button class="btn ghost small" data-act="sayoff">Anuluj</button>';
-  else if(s.m==='none')h+='<b>Nic nie usłyszałem</b><p>Powiedz odpowiedź wyraźnie, blisko telefonu.</p><div class="row2"><button class="btn" data-act="say">Jeszcze raz</button><button class="btn ghost small" data-act="sayoff">Wpiszę</button></div>';
-  else if(s.m==='miss')h+='<b>Usłyszałem: „'+esc(s.heard)+'”</b><p>To nie wygląda na poprawną odpowiedź. Spróbuj jeszcze raz albo wybierz „Nie wiem”.</p><div class="row2"><button class="btn" data-act="say">Jeszcze raz</button><button class="btn ghost small" data-act="sayoff">Wolę pisać</button></div>';
+  if(s.m==='idle')h+='<b>Odpowiedz ustnie</b><p>Dotknij „Mów” na dole i powiedz odpowiedź po angielsku.</p>';
+  else if(s.m==='listen')h+='<div class="sayrow"><span class="pulsem">'+ico('mic',28)+'</span><b>Słucham… powiedz odpowiedź po angielsku</b></div><button class="btn ghost small" data-act="sayoff">Anuluj</button>';
+  else if(s.m==='none')h+='<b>Nic nie usłyszałem</b><p>Powiedz odpowiedź wyraźnie, blisko telefonu.</p><div class="row2"><button class="btn" data-act="say">Jeszcze raz</button></div>';
+  else if(s.m==='miss')h+='<b>Usłyszałem: „'+esc(s.heard)+'”</b><p>To nie wygląda na poprawną odpowiedź. Spróbuj jeszcze raz albo wybierz „Nie wiem”.</p><div class="row2"><button class="btn" data-act="say">Jeszcze raz</button></div>';
   else if(s.m==='self'){
-    if(!s.show)h+='<b>Powiedz odpowiedź na głos</b><p>'+(s.nosr?'Ta przeglądarka nie rozpoznaje mowy, więc ocenisz się sam. ':'')+'Gdy skończysz, dotknij przycisku. Pokażę poprawną odpowiedź.</p><button class="btn" data-act="sayshow">Pokaż odpowiedź</button><button class="btn ghost small" data-act="sayoff">Wolę odpowiedzieć pisemnie</button>';
+    if(!s.show)h+='<b>Powiedz odpowiedź na głos</b><p>'+(s.nosr?'Ta przeglądarka nie rozpoznaje mowy, więc ocenisz się sam. ':'')+'Gdy skończysz, dotknij przycisku. Pokażę poprawną odpowiedź.</p><button class="btn" data-act="sayshow">Pokaż odpowiedź</button>';
     else h+='<b>Poprawna odpowiedź</b><p class="sayans">'+esc(correctText(q))+'</p><p>Czy powiedziałeś to dobrze?</p><div class="row2"><button class="btn okbtn" data-act="sayok">Tak</button><button class="btn badbtn" data-act="saybad">Pomyliłem się</button></div>';
   }
   return h+'</div>';
@@ -525,20 +534,20 @@ function qHTML(q){
   if(q.hint&&!(mk&&maskHint))h+='<p class="hint">'+esc(q.hint)+'</p>';
   if(mk)h+=maskHTML(mk);
   if(q.type==='mc'){
-    h+='<div class="opts">'+c.opts.map(function(o,k){var cls='opt';if(L.status){if(o.i===q.answer)cls+=' right';else if(c.sel===k)cls+=' wrong';}else if(c.sel===k)cls+=' sel';return '<button class="'+cls+'" data-act="pick" data-k="'+k+'"'+(L.status?' disabled':'')+'><span class="key">'+(k+1)+'</span>'+esc(o.t)+'</button>';}).join('')+'</div>';
+    h+='<div class="opts'+(L.ans==='say'?' ro':'')+'">'+c.opts.map(function(o,k){var cls='opt';if(L.status){if(o.i===q.answer)cls+=' right';else if(c.sel===k)cls+=' wrong';}else if(c.sel===k)cls+=' sel';return '<button class="'+cls+'" data-act="pick" data-k="'+k+'"'+(L.status?' disabled':'')+'><span class="key">'+(k+1)+'</span>'+esc(o.t)+'</button>';}).join('')+'</div>';
   }else if(q.type==='type'){
-    h+='<input id="ans" class="field'+(L.status==='ok'?' okf':L.status==='bad'?' badf':'')+'" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Wpisz odpowiedź" value="'+esc(c.val)+'"'+(L.status?' disabled':'')+'>';
+    if(L.ans!=='say')h+='<input id="ans" class="field'+(L.status==='ok'?' okf':L.status==='bad'?' badf':'')+'" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Wpisz odpowiedź" value="'+esc(c.val)+'"'+(L.status?' disabled':'')+'>';
   }else if(q.type==='order'){
-    h+='<div class="slots">'+c.chosen.map(function(wi){return '<button class="wc" data-act="wun" data-w="'+wi+'"'+(L.status?' disabled':'')+'>'+esc(c.words[wi])+'</button>';}).join('')+'</div><div class="bank">'+c.words.map(function(w,wi){return '<button class="wc'+(c.chosen.indexOf(wi)>=0?' used':'')+'" data-act="wpick" data-w="'+wi+'"'+(L.status?' disabled':'')+'>'+esc(w)+'</button>';}).join('')+'</div>';
+    h+=(L.ans==='say'?'<div class="bank ro">'+c.words.map(function(w){return '<span class="wc">'+esc(w)+'</span>';}).join('')+'</div>':'<div class="slots">'+c.chosen.map(function(wi){return '<button class="wc" data-act="wun" data-w="'+wi+'"'+(L.status?' disabled':'')+'>'+esc(c.words[wi])+'</button>';}).join('')+'</div><div class="bank">'+c.words.map(function(w,wi){return '<button class="wc'+(c.chosen.indexOf(wi)>=0?' used':'')+'" data-act="wpick" data-w="'+wi+'"'+(L.status?' disabled':'')+'>'+esc(w)+'</button>';}).join('')+'</div>');
   }else if(q.type==='match'){
-    var side=function(order,key,sel){return '<div class="mcol">'+order.map(function(p){var t=q.pairs[p][key==='l'?0:1],cls='mb';if(c.done.indexOf(p)>=0)cls+=' okm';else if(c.flash&&c.flash[key==='l'?0:1]===p)cls+=' fl';else if(sel===p)cls+=' sel';return '<button class="'+cls+'" data-act="m'+key+'" data-p="'+p+'">'+esc(t)+'</button>';}).join('')+'</div>';};
+    var side=function(order,key,sel){return '<div class="mcol">'+order.map(function(p){var t=q.pairs[p][key==='l'?0:1],cls='mb';if(c.done.indexOf(p)>=0)cls+=' okm';else if(c.flash&&c.flash[key==='l'?0:1]===p)cls+=' fl';else if(sel===p)cls+=' sel';return '<button class="'+cls+'" data-act="m'+key+'" data-p="'+p+'"'+(L.ans==='say'?' disabled':'')+'>'+esc(t)+'</button>';}).join('')+'</div>';};
     h+='<div class="mgrid">'+side(c.ml,'l',c.sl)+side(c.mr,'r',c.sr)+'</div>';
   }
   return h+sayHTML(q);
 }
 function footHTML(q){
   if(!L.status){
-    return '<footer class="foot"><div class="fin"><button class="btn ghost" data-act="skip">Nie wiem</button><button class="btn ghost micb" data-act="say" aria-label="Odpowiedz ustnie">'+ico('mic',18)+'Mów</button>'+(q.type==='match'?'':'<button class="btn" data-act="check"'+(canCheck()?'':' disabled')+'>Sprawdź</button>')+'</div></footer>';
+    return '<footer class="foot"><div class="fin"><button class="btn ghost" data-act="skip">Nie wiem</button>'+(L.ans==='say'?((L.cur.say&&L.cur.say.m==='self')?'':'<button class="btn micb" data-act="say" aria-label="Odpowiedz ustnie">'+ico('mic',18)+(L.cur.say&&L.cur.say.m==='listen'?'Słucham…':'Mów')+'</button>'):(q.type==='match'?'':'<button class="btn" data-act="check"'+(canCheck()?'':' disabled')+'>Sprawdź</button>'))+'</div></footer>';
   }
   var ok=L.status==='ok',m=ok?(L.fixedNow?'Poprawione!':PRAISE_OK[L.msgi%PRAISE_OK.length]):(L.skipped?'Poprawna odpowiedź':PRAISE_BAD[L.msgi%PRAISE_BAD.length]);
   var h='<footer class="foot '+L.status+'"><div class="fb"><strong>'+m+'</strong>';
@@ -550,7 +559,16 @@ function footHTML(q){
   if(q.explain)h+='<p class="ex">'+esc(q.explain)+'</p>';
   return h+'</div><button class="btn '+(ok?'okbtn':'badbtn')+'" data-act="next">Dalej</button></div></footer>';
 }
+function chooseHTML(){
+  var last=S.ansMode==='say'?'say':'write',nosr=!SR;
+  function card(m,ic,t,d){return '<button class="mode'+(last===m?' last':'')+'" data-act="answ" data-m="'+m+'"><span class="mic">'+ic+'</span><span><b>'+t+'</b><small>'+d+'</small></span></button>';}
+  return '<div class="lesson"><div class="lbar"><button class="icon-btn" data-act="qgo" aria-label="Wróć">'+ico('x',24)+'</button><div class="progress"><i style="width:0%"></i></div><span class="chip heart">'+ico('heart',18)+'∞</span></div><main class="lbody"><p class="kicker">'+esc(L.title||'Lekcja')+'</p><h2 class="qtext">Jak chcesz odpowiadać?</h2><p class="muted">Wybór obowiązuje w całym ćwiczeniu. Przy następnym możesz wybrać inaczej.</p><div class="modes">'
+   +card('write','<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>','Pisemnie','Klikasz odpowiedzi i wpisujesz słowa.')
+   +card('say',ico('mic',30),'Ustnie','Mówisz odpowiedzi po angielsku na głos.'+(nosr?' Ta przeglądarka nie rozpoznaje mowy, więc po wypowiedzeniu odpowiedzi ocenisz się sam.':' Gra słucha i sama sprawdza.'))
+   +'</div></main></div>';
+}
 function lessonHTML(){
+  if(L.choose)return chooseHTML();
   var q=cur(),pct=Math.round(L.solved/L.total*100);
   var h='<div class="lesson"><div class="lbar"><button class="icon-btn" data-act="quit" aria-label="Wyjdź z lekcji">'+ico('x',24)+'</button><div class="progress"><i style="width:'+pct+'%"></i></div>'+((unitOf(q.unit)||{}).cards?'<button class="icon-btn" data-act="cheat" aria-label="Ściąga">'+ico('book',24)+'</button>':'')+'<span class="chip heart">'+ico('heart',18)+'∞'+'</span></div><main class="lbody">'+qHTML(q)+'</main>'+footHTML(q)+'</div>';
   if(L.quit)h+='<div class="scrim"><div class="sheet"><h3>Wyjść z lekcji?</h3><p class="muted">Postęp w tej lekcji przepadnie.</p><button class="btn" data-act="qstay">Zostań</button><button class="btn ghost" data-act="qgo">Wyjdź</button></div></div>';
@@ -693,10 +711,11 @@ document.addEventListener('click',function(e){
     case 'qstay':L.quit=false;render();break;
     case 'qgo':L=null;view='home';scrollCur=true;render();break;
     case 'ptoggle':L.pOpen=!L.pOpen;render();break;
-    case 'pick':if(L.status)return;L.cur.sel=+d.k;beep(SND.tap);render();break;
-    case 'wpick':if(L.status)return;if(L.cur.chosen.indexOf(+d.w)<0)L.cur.chosen.push(+d.w);beep(SND.tap);render();break;
+    case 'pick':if(L.status||L.ans==='say')return;L.cur.sel=+d.k;beep(SND.tap);render();break;
+    case 'wpick':if(L.status||L.ans==='say')return;if(L.cur.chosen.indexOf(+d.w)<0)L.cur.chosen.push(+d.w);beep(SND.tap);render();break;
     case 'wun':if(L.status)return;L.cur.chosen=L.cur.chosen.filter(function(x){return x!==+d.w;});render();break;
-    case 'say':sayStart();break;
+    case 'answ':L.ans=d.m==='say'?'say':'write';L.choose=false;S.ansMode=L.ans;save();loadQ();render();window.scrollTo(0,0);break;
+    case 'say':sayStart(true);break;
     case 'sayoff':sayStop();L.cur.say=null;render();break;
     case 'sayshow':L.cur.say.show=true;render();break;
     case 'sayok':if(cur().type==='match')L.cur.done=cur().pairs.map(function(_,i){return i;});resolve(true,false);break;
@@ -720,8 +739,9 @@ document.addEventListener('click',function(e){
 document.addEventListener('input',function(e){if(e.target.id==='ans'&&L&&L.cur){L.cur.val=e.target.value;var b=document.querySelector('[data-act="check"]');if(b)b.disabled=!canCheck();}});
 document.addEventListener('keydown',function(e){
   if(view!=='lesson'||!L||cheat)return;
+  if(L.choose)return;
   if(e.key==='Enter'){if(L.status)next();else if(canCheck())check();return;}
-  if(!L.status&&cur().type==='mc'&&/^[1-9]$/.test(e.key)&&+e.key<=L.cur.opts.length){L.cur.sel=+e.key-1;render();}
+  if(!L.status&&L.ans!=='say'&&!L.choose&&cur().type==='mc'&&/^[1-9]$/.test(e.key)&&+e.key<=L.cur.opts.length){L.cur.sel=+e.key-1;render();}
 });
 setInterval(function(){if(view==='nohearts'){tickHearts();var el=$('#hl');if(el)el.textContent=mmss(nextHeartMs());if(S.hearts>0){save();view='home';render();}}},1000);
 rollDaily();tickHearts();render();
