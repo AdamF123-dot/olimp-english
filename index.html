@@ -406,7 +406,7 @@ function profileHTML(){
   var h=topbar()+'<h2 class="sec">Twoja droga do mistrza</h2><div class="card"><div class="ladder">'+LEVELS.map(function(l,k){return '<div class="lr '+(k===lv?'on':k<lv?'past':'')+'"><span style="color:'+(k<=lv?'var(--gold)':'var(--muted)')+'">'+ico(k<=lv?'medal':'lock',22)+'</span>'+esc(l.name)+'<small>'+l.xp+' XP</small></div>';}).join('')+'</div></div>';
   h+='<div class="card"><h3>Ustawienia</h3><div class="row between" style="margin-bottom:12px"><span style="font-weight:700">Dzienny cel</span><div class="seg">'+[30,50,80].map(function(g){return '<button class="'+(S.goal===g?'on':'')+'" data-act="goal" data-g="'+g+'">'+g+' XP</button>';}).join('')+'</div></div><div class="row between"><span style="font-weight:700">Dźwięki</span><div class="seg"><button class="'+(S.sound?'on':'')+'" data-act="sound" data-s="1">Włączone</button><button class="'+(!S.sound?'on':'')+'" data-act="sound" data-s="0">Wyłączone</button></div></div></div>';
   h+='<div class="card"><h3>Statystyki</h3><div class="row between"><span>Najdłuższa seria</span><b>'+(S.best||0)+' dni</b></div><div class="row between"><span>Ukończone lekcje</span><b>'+S.stats.lessons+'</b></div><div class="row between"><span>Poprawne odpowiedzi</span><b>'+S.stats.correct+'</b></div></div>';
-  return h+parentHTML();
+  return h+parentHTML()+'<p class="muted" style="text-align:center;font-size:12px;margin:14px 0">Wersja aplikacji: 18.10 (A–D + test literowy)</p>';
 }
 
 function parentHTML(){
