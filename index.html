@@ -381,6 +381,7 @@ function homeHTML(){
   h+='<section class="card hero"><div style="min-width:0"><h2>'+greet()+', Konradek!</h2><p class="sub">'+(left>0?'Do celu dnia brakuje '+left+' XP':'Cel dnia zaliczony. Brawo!')+(streakNow()>=2?' Seria: '+streakNow()+' dni, trzymaj ją!':'')+'</p><div class="lv"><span>'+esc(cur.name)+'</span><div class="bar"><i style="width:'+pct+'%"></i></div><span>'+(nx?(nx.xp-S.xp)+' XP':'MAX')+'</span></div></div>'
    +'<svg class="ring" viewBox="0 0 64 64" width="76" height="76" role="img" aria-label="Cel dnia"><circle cx="32" cy="32" r="26" class="rb"/><circle cx="32" cy="32" r="26" class="rf" stroke-dasharray="'+C+'" stroke-dashoffset="'+(C*(1-dx/S.goal))+'" transform="rotate(-90 32 32)"/><text x="32" y="37" text-anchor="middle" class="rt">'+dx+'/'+S.goal+'</text></svg></section>';
   if(S.mistakes.length){h+='<button class="review" data-act="review"><span style="color:var(--bad)">'+ico('heart',30)+'</span><div><b>Powtórka błędów: '+S.mistakes.length+' pytań</b><span>Poprawiaj błędy, aż będą same dobre odpowiedzi.</span></div></button>';}
+  h+=photoCard();
   var firstCur=false;
   var st=S.stage||'szkolny';
   var avail=STAGES.filter(function(s){return units().some(function(u){return stageOf(u)===s[0];});});
@@ -411,7 +412,7 @@ function profileHTML(){
   var h=topbar()+'<h2 class="sec">Twoja droga do mistrza</h2><div class="card"><div class="ladder">'+LEVELS.map(function(l,k){return '<div class="lr '+(k===lv?'on':k<lv?'past':'')+'"><span style="color:'+(k<=lv?'var(--gold)':'var(--muted)')+'">'+ico(k<=lv?'medal':'lock',22)+'</span>'+esc(l.name)+'<small>'+l.xp+' XP</small></div>';}).join('')+'</div></div>';
   h+='<div class="card"><h3>Ustawienia</h3><div class="row between" style="margin-bottom:12px"><span style="font-weight:700">Dzienny cel</span><div class="seg">'+[30,50,80].map(function(g){return '<button class="'+(S.goal===g?'on':'')+'" data-act="goal" data-g="'+g+'">'+g+' XP</button>';}).join('')+'</div></div><div class="row between"><span style="font-weight:700">Dźwięki</span><div class="seg"><button class="'+(S.sound?'on':'')+'" data-act="sound" data-s="1">Włączone</button><button class="'+(!S.sound?'on':'')+'" data-act="sound" data-s="0">Wyłączone</button></div></div></div>';
   h+='<div class="card"><h3>Statystyki</h3><div class="row between"><span>Najdłuższa seria</span><b>'+(S.best||0)+' dni</b></div><div class="row between"><span>Ukończone lekcje</span><b>'+S.stats.lessons+'</b></div><div class="row between"><span>Poprawne odpowiedzi</span><b>'+S.stats.correct+'</b></div></div>';
-  return h+parentHTML()+'<p class="muted" style="text-align:center;font-size:12px;margin:14px 0">Wersja aplikacji: 25.10c (pełne testy)</p>';
+  return h+parentHTML()+'<p class="muted" style="text-align:center;font-size:12px;margin:14px 0">Wersja aplikacji: 25.10d (zdjęcie materiału)</p>';
 }
 
 function parentHTML(){
@@ -675,6 +676,41 @@ function render(){
   if(view==='lesson'&&L){L.fresh=false;if(L.focusNext&&cur().type==='type'&&!L.status){var a=$('#ans');if(a)try{a.focus({preventScroll:true});}catch(e){}}L.focusNext=false;}
 }
 
+/* ---------- nowy materiał ze zdjęcia (tylko tam, gdzie jest dostęp do Claude) ---------- */
+var SAMPLE=null,PHOTO_OK=false,photo={busy:false,msg:'',json:''},photoCtl=null;
+try{if(typeof claude!=='undefined'&&claude&&claude.use){claude.use('sample').then(function(s){if(!s)return;SAMPLE=s;return s.limits().then(function(l){if(l&&l.images){PHOTO_OK=true;if(view==='home')render();}});}).catch(function(){});}}catch(e){}
+function photoCard(){
+  if(!PHOTO_OK)return '';
+  var h='<section class="card" style="margin-bottom:12px"><h3 style="margin:0 0 6px">Nowy materiał ze zdjęcia</h3><p class="muted" style="font-size:14px;margin:0 0 10px">Zrób zdjęcie strony z książki lub zeszytu (może być kilka). Claude przygotuje z niej ćwiczenia: pytania A–D i test literowy. Pojawią się w zakładce „Własne”.</p>';
+  if(photo.busy)h+='<p class="msg">Claude czyta zdjęcie i układa ćwiczenia… to może potrwać do minuty.</p><div class="row"><button class="btn ghost small" data-act="photostop">Przerwij</button></div>';
+  else h+='<label class="btn" for="photoin" style="display:inline-block;cursor:pointer">Zrób zdjęcie / wybierz plik</label><input id="photoin" type="file" accept="image/*" capture="environment" multiple hidden>';
+  if(photo.msg)h+='<p class="msg">'+esc(photo.msg)+'</p>';
+  if(photo.json&&!photo.busy)h+='<div class="row" style="margin-top:8px"><button class="btn ghost small" data-act="photocopy">Kopiuj ćwiczenia dla Konrada</button></div><p class="muted" style="font-size:13px">Na telefonie Konrada wklej je w profilu, w polu „Dodaj własne pytania”.</p>';
+  return h+'</section>';
+}
+function photoMake(files){
+  if(!SAMPLE||!files||!files.length)return;
+  photo.busy=true;photo.msg='';photo.json='';photoCtl=new AbortController();render();
+  var prompt='Na zdjęciach jest materiał do nauki angielskiego (np. strona z podręcznika, tekst, lista słówek, ćwiczenia) dla ucznia 7–8 klasy, który przygotowuje się do olimpiady z angielskiego. '+
+  'Na podstawie WYŁĄCZNIE tego materiału ułóż 12 ćwiczeń z luką. Każde ćwiczenie to zdanie po angielsku, w którym brakuje jednego słowa (lub fragmentu bez spacji, np. phrasal verb jako jedno słowo — jeśli się nie da, wybierz inne słowo). '+
+  'Zdanie weź z materiału albo ułóż podobne, w poziomie ucznia. Zwróć WYŁĄCZNIE tablicę JSON, bez żadnego innego tekstu, obiektów w formacie: '+
+  '{"q":"zdanie z luką oznaczoną ____ (cztery podkreślenia)","answer":"poprawne słowo","wrong":["zły1","zły2","zły3"],"explain":"krótkie wyjaśnienie po polsku, np. tłumaczenie lub reguła"}. '+
+  'Złe opcje mają być wiarygodne, ale na pewno niepoprawne w tym zdaniu. Jeśli zdjęcie jest nieczytelne albo nie zawiera materiału do nauki, zwróć pustą tablicę [].';
+  SAMPLE.json(prompt,{images:Array.prototype.slice.call(files,0,4),modelTier:'default',signal:photoCtl.signal,cache:false}).then(function(arr){
+    if(!Array.isArray(arr))throw {code:'bad'};
+    var items=arr.filter(function(x){return x&&typeof x.q==='string'&&x.q.indexOf('____')>=0&&typeof x.answer==='string'&&x.answer&&Array.isArray(x.wrong)&&x.wrong.length>=2;}).map(function(x){var w=x.wrong.map(String).filter(function(y,i,a){return y&&y.toLowerCase()!==x.answer.toLowerCase()&&a.indexOf(y)===i;}).slice(0,3);return w.length>=2?{q:x.q,a:x.answer,w:w,e:String(x.explain||'')}:null;}).filter(Boolean);
+    if(!items.length){photo.busy=false;photo.msg='Nie udało się ułożyć ćwiczeń z tego zdjęcia. Spróbuj zrobić je ostrzej i bliżej.';render();return;}
+    var id='foto'+Date.now().toString(36),d=new Date(),title='Nowy materiał '+d.getDate()+'.'+('0'+(d.getMonth()+1)).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2),qs=[],per=4;
+    for(var s=0;s<items.length;s+=per){var g=items.slice(s,s+per);
+      g.forEach(function(x,i){qs.push({id:id+'a'+(s+i),unit:id,type:'mc',q:x.q,options:[x.a].concat(x.w),answer:0,explain:x.e});});
+      g.forEach(function(x,i){qs.push({id:id+'l'+(s+i),unit:id,type:'type',q:x.q,answers:[x.a],phase:'Test literowy',explain:x.e});});}
+    var obj={units:[{id:id,title:title,desc:'Ćwiczenia ze zdjęcia: pytania A–D i test literowy',size:2*per,shuffle:false}],questions:qs};
+    addCustom(JSON.stringify(obj));S.stage='wlasne';save();
+    photo.busy=false;photo.json=JSON.stringify(obj);photo.msg='Gotowe: '+items.length+' ćwiczeń. Znajdziesz je w zakładce „Własne”.';render();
+  }).catch(function(e){photo.busy=false;var c=e&&e.code;photo.msg=c==='cancelled'?'':c==='not_granted'?'Nie zezwolono na użycie Claude w tej aplikacji.':c==='rate_limited'?'Za dużo zapytań. Spróbuj za chwilę.':c==='image_rejected'?'To zdjęcie nie może zostać użyte. Wybierz inne.':'Nie udało się. Spróbuj jeszcze raz.';render();});
+}
+document.addEventListener('change',function(e){if(e.target&&e.target.id==='photoin'){var f=e.target.files;if(f&&f.length)photoMake(f);}});
+
 /* ---------- własne pytania ---------- */
 function addCustom(txt){
   var o;try{o=JSON.parse(txt);}catch(e){return 'To nie jest poprawny JSON. Sprawdź, czy skopiowano cały plik.';}
@@ -735,6 +771,8 @@ document.addEventListener('click',function(e){
     case 'sound':S.sound=d.s==='1';save();render();if(S.sound)beep(SND.ok);break;
     case 'gate':if(+($('#gate').value)===GA*GB){parentOk=true;pmsg='';}else pmsg='Spróbuj jeszcze raz.';render();break;
     case 'pclose':parentOk=false;pmsg='';GA=6+Math.floor(Math.random()*4);GB=6+Math.floor(Math.random()*4);render();break;
+    case 'photostop':if(photoCtl)photoCtl.abort();break;
+    case 'photocopy':try{navigator.clipboard.writeText(photo.json).then(function(){toast('Skopiowano');},function(){toast('Nie udało się skopiować');});}catch(_){toast('Nie udało się skopiować');}break;
     case 'padd':pmsg=addCustom($('#cjson').value);render();break;
     case 'pclear':S.custom={units:[],questions:[],passages:{}};S.mistakes=S.mistakes.filter(qById);save();pmsg='Usunięto własne pytania.';render();break;
     case 'pcopy':var ta=$('#bk');ta.select();try{navigator.clipboard.writeText(ta.value).then(function(){toast('Skopiowano');},function(){try{document.execCommand('copy');toast('Skopiowano');}catch(_){}});}catch(_){try{document.execCommand('copy');toast('Skopiowano');}catch(__){}}break;
