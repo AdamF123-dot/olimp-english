@@ -216,11 +216,10 @@ details summary{cursor:pointer;font-weight:700;margin:8px 0}
 /* stages + cheat sheet */
 .stages{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin:0 -2px;scrollbar-width:none}
 .stages::-webkit-scrollbar{display:none}
-.jump{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:6px;overflow-x:auto;padding:8px 2px;margin:0 -2px 8px;background:var(--bg);scrollbar-width:none}
-.jump::-webkit-scrollbar{display:none}
-.jump span{flex:none;font-size:12px;font-weight:800;color:var(--muted)}
-.jump button{flex:none;padding:6px 12px;border:2px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font-weight:800;font-size:13px}
-.unit{scroll-margin-top:56px}
+.jump{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 2px;margin:0 -2px 10px}
+.jump span{width:100%;font-size:12px;font-weight:800;color:var(--muted)}
+.jump button{padding:6px 12px;border:2px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font-weight:800;font-size:13px}
+.unit{scroll-margin-top:12px}
 .stages button{flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:8px 14px;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;background:var(--surface);color:var(--ink);font-family:var(--f-display);font-weight:600;font-size:15px;line-height:1.2}
 .stages button small{font-family:var(--f-body);font-weight:700;font-size:11px;color:var(--muted)}
 .stages button.on{border-color:var(--brand);background:var(--brand-soft)}
@@ -387,7 +386,7 @@ function homeHTML(){
   var avail=STAGES.filter(function(s){return units().some(function(u){return stageOf(u)===s[0];});});
   if(!avail.some(function(s){return s[0]===st;}))st=avail[0]?avail[0][0]:'szkolny';
   h+='<div class="stages">'+avail.map(function(s){var us=units().filter(function(u){return stageOf(u)===s[0];}),tot=0,dn=0;us.forEach(function(u){var ls=lessonsOf(u);tot+=ls.length;dn+=ls.filter(function(_,i){return S.done[lkey(u,i)]>0;}).length;});return '<button class="'+(s[0]===st?'on':'')+'" data-act="stage" data-s="'+esc(s[0])+'">'+s[1]+'<small>'+dn+'/'+tot+' lekcji</small></button>';}).join('')+'</div>';
-  if(st==='testy'){var tu=units().filter(function(u){return stageOf(u)===st&&lessonsOf(u).length;});h+='<div class="jump" role="navigation" aria-label="Wybierz test"><span>Idź do:</span>'+tu.map(function(u){return '<button data-act="jump" data-u="'+esc(u.id)+'">'+esc(u.title.replace(/^Test /,'Test '))+'</button>';}).join('')+'</div>';}
+  if(st==='testy'){var tu=units().filter(function(u){return stageOf(u)===st&&lessonsOf(u).length;});h+='<div class="jump" role="navigation" aria-label="Wybierz test"><span>Wybierz test:</span>'+tu.map(function(u){return '<button data-act="jump" data-u="'+esc(u.id)+'">'+esc(u.title.replace(/^Test /,'Test '))+'</button>';}).join('')+'</div>';}
   units().filter(function(u){return stageOf(u)===st;}).forEach(function(u){
     var ls=lessonsOf(u);if(!ls.length)return;var col=ucol(u),dn=ls.filter(function(_,i){return S.done[lkey(u,i)]>0;}).length;
     h+='<section class="unit" id="u-'+esc(u.id)+'" style="--uc:'+col[0]+';--ucs:'+col[1]+'"><div class="ubanner"><div class="uh"><div><h2>'+esc(u.title)+'</h2><p>'+esc(u.desc||'')+'</p></div><div class="ubtn">'+(u.cards?'<button data-act="cheat" data-u="'+esc(u.id)+'">'+ico('book',18)+'Ściąga</button>':'')+(u.link?'<a href="'+esc(u.link)+'" target="_blank" rel="noopener">'+ico(u.linkIcon||'sound',18)+esc(u.linkLabel||'Posłuchaj')+'</a>':'')+'</div></div><p class="pg">Ukończone lekcje: '+dn+' z '+ls.length+'</p></div>';
@@ -412,7 +411,7 @@ function profileHTML(){
   var h=topbar()+'<h2 class="sec">Twoja droga do mistrza</h2><div class="card"><div class="ladder">'+LEVELS.map(function(l,k){return '<div class="lr '+(k===lv?'on':k<lv?'past':'')+'"><span style="color:'+(k<=lv?'var(--gold)':'var(--muted)')+'">'+ico(k<=lv?'medal':'lock',22)+'</span>'+esc(l.name)+'<small>'+l.xp+' XP</small></div>';}).join('')+'</div></div>';
   h+='<div class="card"><h3>Ustawienia</h3><div class="row between" style="margin-bottom:12px"><span style="font-weight:700">Dzienny cel</span><div class="seg">'+[30,50,80].map(function(g){return '<button class="'+(S.goal===g?'on':'')+'" data-act="goal" data-g="'+g+'">'+g+' XP</button>';}).join('')+'</div></div><div class="row between"><span style="font-weight:700">Dźwięki</span><div class="seg"><button class="'+(S.sound?'on':'')+'" data-act="sound" data-s="1">Włączone</button><button class="'+(!S.sound?'on':'')+'" data-act="sound" data-s="0">Wyłączone</button></div></div></div>';
   h+='<div class="card"><h3>Statystyki</h3><div class="row between"><span>Najdłuższa seria</span><b>'+(S.best||0)+' dni</b></div><div class="row between"><span>Ukończone lekcje</span><b>'+S.stats.lessons+'</b></div><div class="row between"><span>Poprawne odpowiedzi</span><b>'+S.stats.correct+'</b></div></div>';
-  return h+parentHTML()+'<p class="muted" style="text-align:center;font-size:12px;margin:14px 0">Wersja aplikacji: 25.10 (pełny Test 29, wybór testu)</p>';
+  return h+parentHTML()+'<p class="muted" style="text-align:center;font-size:12px;margin:14px 0">Wersja aplikacji: 25.10b (wszystkie testy widoczne)</p>';
 }
 
 function parentHTML(){
